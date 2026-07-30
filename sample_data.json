@@ -1,0 +1,16 @@
+{
+    "stats": {
+        "riskScore": 45,
+        "activeThreats": 1,
+        "vulnCount": 5,
+        "uptime": "99.95%"
+    },
+    "assets": [
+        { "id": "TEST-SRV-01", "type": "Database", "ip": "10.0.0.100", "os": "Linux", "status": "secure" },
+        { "id": "TEST-WS-02", "type": "Workstation", "ip": "10.0.0.101", "os": "Windows 10", "status": "warning" }
+    ],
+    "vulns": [
+        { "cve": "CVE-TEST-001", "severity": "High", "desc": "Imported Vulnerability", "affected": "TEST-WS-02" }
+    ],
+    "events": []
+}

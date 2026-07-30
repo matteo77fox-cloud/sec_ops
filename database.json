@@ -1,0 +1,286 @@
+{
+    "users": [
+        {
+            "user": "Analyst_01",
+            "pass": "admin"
+        },
+        {
+            "user": "fox ",
+            "pass": "123"
+        },
+        {
+            "user": "juvemerda",
+            "pass": "123"
+        },
+        {
+            "user": "min",
+            "pass": "chia"
+        }
+    ],
+    "data": {
+        "stats": {
+            "riskScore": 72,
+            "activeThreats": 3,
+            "vulnCount": 12,
+            "uptime": "99.95%"
+        },
+        "assets": [
+            {
+                "id": "DC-01",
+                "type": "Server",
+                "ip": "10.0.0.5",
+                "os": "Windows Server 2022",
+                "status": "secure"
+            },
+            {
+                "id": "WEB-PROD-01",
+                "type": "Server",
+                "ip": "10.0.0.20",
+                "os": "Ubuntu 22.04 LTS",
+                "status": "warning"
+            },
+            {
+                "id": "DB-ORACLE-01",
+                "type": "Database",
+                "ip": "10.0.0.25",
+                "os": "Oracle Linux 9",
+                "status": "secure"
+            },
+            {
+                "id": "WS-HR-004",
+                "type": "Workstation",
+                "ip": "192.168.1.45",
+                "os": "Windows 11 Enterprise",
+                "status": "critical"
+            },
+            {
+                "id": "CEO-MACBOOK",
+                "type": "Workstation",
+                "ip": "192.168.1.100",
+                "os": "macOS Sonoma",
+                "status": "secure"
+            },
+            {
+                "id": "IoT-THERMO-1F",
+                "type": "IoT Device",
+                "ip": "192.168.50.11",
+                "os": "Embedded Linux",
+                "status": "warning"
+            },
+            {
+                "id": "FW-PALOALTO-01",
+                "type": "Network",
+                "ip": "10.0.0.1",
+                "os": "PAN-OS 11.0",
+                "status": "secure"
+            },
+            {
+                "id": "SW-CORE-01",
+                "type": "Network",
+                "ip": "10.0.0.2",
+                "os": "Cisco IOS-XE",
+                "status": "secure"
+            },
+            {
+                "id": "srv_01",
+                "ip": "111",
+                "type": "Server",
+                "os": "",
+                "status": "secure"
+            },
+            {
+                "id": "srv_02",
+                "ip": "11111",
+                "type": "Server",
+                "os": "ubuntu",
+                "status": "critical"
+            }
+        ],
+        "vulns": [
+            {
+                "cve": "CVE-2024-21413",
+                "desc": "Microsoft Outlook Remote Code Execution Vulnerability",
+                "severity": "Critical",
+                "affected": "WS-HR-004"
+            },
+            {
+                "cve": "CVE-2023-44487",
+                "desc": "HTTP/2 Rapid Reset Attack",
+                "severity": "High",
+                "affected": "WEB-PROD-01"
+            },
+            {
+                "cve": "CVE-2023-38545",
+                "desc": "SOCKS5 heap buffer overflow in curl",
+                "severity": "High",
+                "affected": "DC-01"
+            },
+            {
+                "cve": "CVE-2023-4863",
+                "desc": "Heap buffer overflow in libwebp",
+                "severity": "Medium",
+                "affected": "CEO-MACBOOK"
+            },
+            {
+                "cve": "DEFAULT-CREDS",
+                "desc": "Default credentials enabled on admin interface",
+                "severity": "Critical",
+                "affected": "IoT-THERMO-1F"
+            }
+        ],
+        "threatFeed": [
+            {
+                "date": "20/01/26",
+                "title": "Attacco Hacker alla Banca Nazionale",
+                "source": "NEWS",
+                "link": "#"
+            },
+            {
+                "date": "19/01/26",
+                "title": "Nuovo Virus \"BlackStorm\" rilevato",
+                "source": "CSIRT",
+                "link": "#"
+            },
+            {
+                "date": "18/01/26",
+                "title": "Furto di dati sensibili sanitario",
+                "source": "ALERT",
+                "link": "#"
+            },
+            {
+                "date": "17/01/26",
+                "title": "Aggiornamento critico Windows",
+                "source": "MSFT",
+                "link": "#"
+            },
+            {
+                "date": "15/01/26",
+                "title": "Phishing via SMS in aumento",
+                "source": "ACN",
+                "link": "#"
+            }
+        ],
+        "events": [
+            {
+                "time": "12:10:27",
+                "sev": "INFO",
+                "msg": "Daily backup complete",
+                "src": "BackupDaemon"
+            },
+            {
+                "time": "12:10:34",
+                "sev": "CRITICAL",
+                "msg": "Unusual outbound traffic",
+                "src": "FW-PALOALTO-01"
+            },
+            {
+                "time": "12:10:42",
+                "sev": "INFO",
+                "msg": "User login successful",
+                "src": "AuthService"
+            },
+            {
+                "time": "10:33:03",
+                "sev": "INFO",
+                "msg": "User login successful",
+                "src": "WEB-PROD-01 (10.0.0.20)"
+            },
+            {
+                "time": "10:33:11",
+                "sev": "INFO",
+                "msg": "Package update installed",
+                "src": "WEB-PROD-01 (10.0.0.20)"
+            },
+            {
+                "time": "10:33:19",
+                "sev": "WARN",
+                "msg": "Disk space low (<15%)",
+                "src": "WS-HR-004 (192.168.1.45)"
+            },
+            {
+                "time": "10:33:27",
+                "sev": "CRITICAL",
+                "msg": "Unauthorized root access attempt",
+                "src": "FW-PALOALTO-01 (10.0.0.1)"
+            },
+            {
+                "time": "10:33:35",
+                "sev": "INFO",
+                "msg": "Health check passed",
+                "src": "DB-ORACLE-01 (10.0.0.25)"
+            },
+            {
+                "time": "10:39:21",
+                "sev": "INFO",
+                "msg": "Policy update applied",
+                "src": "FW-PALOALTO-01 (10.0.0.1)"
+            },
+            {
+                "time": "10:39:29",
+                "sev": "CRITICAL",
+                "msg": "Unusual outbound traffic detected",
+                "src": "FW-PALOALTO-01 (10.0.0.1)"
+            },
+            {
+                "time": "10:39:37",
+                "sev": "INFO",
+                "msg": "Daily backup complete",
+                "src": "CEO-MACBOOK (192.168.1.100)"
+            },
+            {
+                "time": "10:39:45",
+                "sev": "INFO",
+                "msg": "User login successful",
+                "src": "IoT-THERMO-1F (192.168.50.11)"
+            },
+            {
+                "time": "10:39:53",
+                "sev": "INFO",
+                "msg": "User login successful",
+                "src": "DB-ORACLE-01 (10.0.0.25)"
+            },
+            {
+                "time": "10:40:01",
+                "sev": "INFO",
+                "msg": "Daily backup complete",
+                "src": "WS-HR-004 (192.168.1.45)"
+            },
+            {
+                "time": "10:40:09",
+                "sev": "INFO",
+                "msg": "Policy update applied",
+                "src": "CEO-MACBOOK (192.168.1.100)"
+            },
+            {
+                "time": "10:40:17",
+                "sev": "CRITICAL",
+                "msg": "Unusual outbound traffic detected",
+                "src": "srv_01 (111)"
+            },
+            {
+                "time": "10:40:25",
+                "sev": "INFO",
+                "msg": "Health check passed",
+                "src": "srv_02 (11111)"
+            }
+        ],
+        "sandboxHistory": [
+            {
+                "id": "1770025227506",
+                "timestamp": 1770025227506,
+                "fileName": "Screenshot 2024-11-08 104324.png",
+                "fileHash": "f525da7b872ef724c7263070df77f6a6a6f434d07584b614cc46b37215b6ed89",
+                "isMalicious": true,
+                "details": {
+                    "name": "Screenshot 2024-11-08 104324.png",
+                    "size": 99358,
+                    "type": "image/png",
+                    "lastModified": 1731059004297,
+                    "magicBytes": "89 50 4E 47",
+                    "hash": "f525da7b872ef724c7263070df77f6a6a6f434d07584b614cc46b37215b6ed89",
+                    "entropy": "4.12"
+                }
+            }
+        ]
+    }
+}

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecOps | Security Posture Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Login View -->
+    <div id="login-view" class="login-container hidden">
+        <div class="login-card">
+            <div class="logo" style="justify-content: center; margin-bottom: 20px;">
+                <span class="icon" style="font-size: 2rem;">🛡️</span>
+                <span style="font-size: 1.5rem;">SECOPS<span class="highlight">_CMD</span></span>
+            </div>
+
+            <!-- Login Form -->
+            <div id="login-form-container">
+                <div class="form-group">
+                    <label>OPERATOR ID</label>
+                    <input type="text" id="login-user" class="form-control" placeholder="Enter ID...">
+                </div>
+                <div class="form-group">
+                    <label>ACCESS CODE</label>
+                    <input type="password" id="login-pass" class="form-control" placeholder="••••••••">
+                </div>
+
+
+
+                <button class="btn btn-primary" onclick="login()"
+                    style="width: 100%; margin-top: 10px; padding: 12px;">INITIALIZE SESSION</button>
+                <div style="margin-top: 15px; text-align: center; font-size: 0.8rem; color: var(--text-muted);">
+                    <span style="font-family: var(--font-mono);">NEW OPERATOR?</span>
+                    <a href="#" onclick="toggleAuthMode()"
+                        style="color: var(--accent-primary); text-decoration: none;">REGISTER</a>
+                </div>
+            </div>
+
+            <!-- Register Form -->
+            <div id="register-form-container" class="hidden">
+                <div class="form-group">
+                    <label>NEW OPERATOR ID</label>
+                    <input type="text" id="reg-user" class="form-control" placeholder="Create ID...">
+                </div>
+                <div class="form-group">
+                    <label>SET ACCESS CODE</label>
+                    <input type="password" id="reg-pass" class="form-control" placeholder="••••••••">
+                </div>
+                <div class="form-group">
+                    <label>CONFIRM CODE</label>
+                    <input type="password" id="reg-pass-confirm" class="form-control" placeholder="••••••••">
+                </div>
+                <button class="btn btn-primary" onclick="register()"
+                    style="width: 100%; margin-top: 10px; padding: 12px;">CREATE IDENTITY</button>
+                <div style="margin-top: 15px; text-align: center; font-size: 0.8rem; color: var(--text-muted);">
+                    <span style="font-family: var(--font-mono);">ALREADY ACTIVE?</span>
+                    <a href="#" onclick="toggleAuthMode()"
+                        style="color: var(--accent-primary); text-decoration: none;">LOGIN</a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="app">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo">
+                <span class="icon">🛡️</span>
+                <span>SECOPS<span class="highlight">_CMD</span></span>
+            </div>
+            <ul class="nav-links">
+                <li class="active" data-view="dashboard">
+                    <span class="icon">📊</span> DASHBOARD
+                </li>
+                <li data-view="assets">
+                    <span class="icon">🖥️</span> ASSETS
+                </li>
+                <li data-view="vulns">
+                    <span class="icon">☣️</span> VULNERABILITIES
+                </li>
+                <li data-view="intel">
+                    <span class="icon">🌍</span> THREAT INTEL
+                </li>
+                <li data-view="sandbox">
+                    <span class="icon">📦</span> SANDBOX
+                </li>
+                <li data-view="logs">
+                    <span class="icon">📋</span> LOGS
+                </li>
+                <li data-view="simulation">
+                    <span class="icon">🚀</span> SIMULATION
+                </li>
+                <li data-view="settings">
+                    <span class="icon">⚙️</span> SYSTEM
+                </li>
+            </ul>
+            <div class="time-display sidebar-footer" id="clock">00:00:00</div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="breadcrumbs">SYSTEM / DASHBOARD</div>
+                <div class="actions">
+                    <button class="icon-btn" onclick="window.toggleHeaderAudio()" id="header-audio-btn" title="Toggle System Audio">🔊</button>
+                    <button class="icon-btn" onclick="toggleLanguage()" id="lang-toggle">🇮🇹</button>
+                    <button class="icon-btn">🔔<span class="badge">3</span></button>
+                    <button class="icon-btn">🔍</button>
+                    <div class="user-profile header-profile" onclick="toggleUserMenu()" style="cursor: pointer;"
+                        title="User Options">
+                        <div class="avatar"></div>
+                        <div class="info">
+                            <span class="name" id="user-display">Analyst_01</span>
+                            <span class="status">ONLINE</span>
+                        </div>
+                        <!-- Dropdown Menu -->
+                        <div id="user-menu" class="user-menu hidden">
+                            <div class="menu-item" onclick="switchUser(event)">🔄 Switch User</div>
+                            <div class="menu-item danger" onclick="requestLogout(event)">🚪 Log Out</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div id="view-container" class="view-container">
+                <!-- Views will be injected here via JS -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Component -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">ADD NEW ITEM</h3>
+                <button class="close-btn" onclick="closeModal()">×</button>
+            </div>
+            <div id="modal-body">
+                <!-- Form will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating AI Copilot Orb & Console -->
+    <div id="copilot-orb-container" class="copilot-orb-container">
+        <div id="copilot-orb" class="copilot-orb" onclick="window.toggleCopilotConsole()" title="SARO_AI Security Copilot">
+            <div class="orb-target-lock"></div>
+            <img class="orb-icon-img" src="saro-ai.jpg" alt="SARO_AI" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%; z-index: 2;">
+            <span class="orb-pulse-ring"></span>
+            <span class="orb-pulse-ring-slow"></span>
+        </div>
+        
+        <div id="copilot-console-card" class="copilot-console-card hidden">
+            <div class="copilot-terminal-crt"></div>
+            <div class="copilot-console-header">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="console-title">🤖 SARO_AI CO-PILOT v1.0.4</span>
+                    <div class="copilot-voice-wave hidden" id="copilot-voice-wave">
+                        <span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                </div>
+                <button class="console-close-btn" onclick="window.toggleCopilotConsole()">×</button>
+            </div>
+            <div class="copilot-console-body">
+                <div id="copilot-chat-output" class="copilot-chat-output">
+                    <!-- Initial message loaded dynamically via app.js -->
+                </div>
+                
+                <!-- Quick Shortcuts -->
+                <div class="copilot-shortcuts">
+                    <button id="copilot-btn-posture" onclick="window.askCopilotQuickCommand('status')">⚡ POSTURE</button>
+                    <button id="copilot-btn-vulns" onclick="window.askCopilotQuickCommand('vulns')">⚠️ VULNS</button>
+                    <button id="copilot-btn-threats" onclick="window.askCopilotQuickCommand('threats')">🔥 THREATS</button>
+                </div>
+                
+                <!-- Input bar -->
+                <div class="copilot-input-bar" style="position: relative;">
+                    <div id="copilot-autocomplete-list" class="copilot-autocomplete-list hidden"></div>
+                    <input type="text" id="copilot-input" autocomplete="off" placeholder="Enter command...">
+                    <button class="copilot-send-btn" onclick="window.sendCopilotMessage()">SEND</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
