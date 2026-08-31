@@ -4440,9 +4440,45 @@ window.selectDecompiledFunction = function(idx, el) {
     const decompiledList = window.currentDecompiledData || [];
     const fn = decompiledList[idx];
     const codeContainer = document.getElementById('decompiler-code-container');
-    if (codeContainer && fn) {
-        codeContainer.innerHTML = syntaxHighlightC(fn.code);
+    const lineNumbersContainer = document.getElementById('decompiler-line-numbers');
+    const activeFnNameEl = document.getElementById('decompiler-active-function-name');
+    
+    if (fn) {
+        if (codeContainer) {
+            codeContainer.innerHTML = syntaxHighlightC(fn.code);
+        }
+        if (lineNumbersContainer) {
+            const linesCount = fn.code.split('\n').length;
+            let numsHtml = '';
+            for (let i = 1; i <= linesCount; i++) {
+                numsHtml += `<div>${i}</div>`;
+            }
+            lineNumbersContainer.innerHTML = numsHtml;
+        }
+        if (activeFnNameEl) {
+            activeFnNameEl.innerText = `${fn.name} @ ${fn.entry_point || '0x00000000'}`;
+        }
+        window.currentSelectedFunctionIndex = idx;
     }
+};
+
+window.copyDecompiledCode = function(btn) {
+    const decompiledList = window.currentDecompiledData || [];
+    const idx = window.currentSelectedFunctionIndex || 0;
+    const fn = decompiledList[idx];
+    if (!fn) return;
+    
+    navigator.clipboard.writeText(fn.code).then(() => {
+        const origText = btn.innerHTML;
+        btn.innerHTML = '✅ COPIED!';
+        btn.style.color = 'var(--accent-primary)';
+        setTimeout(() => {
+            btn.innerHTML = origText;
+            btn.style.color = '';
+        }, 1500);
+    }).catch(err => {
+        console.error('Failed to copy text:', err);
+    });
 };
 
 function generateDecompilerHTML() {
@@ -4457,7 +4493,7 @@ function generateDecompilerHTML() {
                     ${isIt ? 'NESSUNA FUNZIONE DECOMPILATA' : 'NO DECOMPILED FUNCTIONS'}
                 </h4>
                 <p style="font-size: 0.78rem; max-width: 320px; margin-top: 5px;">
-                    ${isIt ? 'Lancia la sottomissione al backend per avviare l\'analizzatore Ghidra e caricare le funzioni.' : 'Trigger the sandbox submission to run the Ghidra analyzer and populate program functions.'}
+                    ${isIt ? 'Carica un binario per far girare l\'analizzatore Ghidra e caricare le funzioni.' : 'Upload a binary file to execute the Ghidra decompiler engine and populate the functions list.'}
                 </p>
             </div>
         `;
@@ -4468,29 +4504,79 @@ function generateDecompilerHTML() {
         const activeClass = idx === 0 ? 'active' : '';
         sidebarList += `
             <div class="sandbox-decompiler-fn-item ${activeClass}" data-index="${idx}" onclick="window.selectDecompiledFunction(${idx}, this)">
-                <span>${fn.name}</span>
+                <span style="font-weight: 500;">ƒ ${fn.name}</span>
                 <span style="font-size: 0.58rem; color: var(--text-muted); font-family: var(--font-mono);">${fn.entry_point || ''}</span>
             </div>
         `;
     });
 
     const initialCode = decompiledList[0] ? decompiledList[0].code : '';
+    const initialLinesCount = initialCode.split('\n').length;
+    let initialLineNumbers = '';
+    for (let i = 1; i <= initialLinesCount; i++) {
+        initialLineNumbers += `<div>${i}</div>`;
+    }
+
     const highlightedCode = syntaxHighlightC(initialCode);
+    const firstFnName = decompiledList[0] ? `${decompiledList[0].name} @ ${decompiledList[0].entry_point || '0x00000000'}` : 'unknown';
 
     return `
-        <div class="sandbox-decompiler-container">
+        <!-- Decompiler Header Info Row -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0, 204, 255, 0.03); border: 1px solid rgba(0, 204, 255, 0.1); padding: 10px 15px; border-radius: 8px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 1.2rem;">🐉</span>
+                <div>
+                    <div style="font-family: var(--font-mono); font-size: 0.75rem; font-weight: bold; color: var(--accent-info); display: flex; align-items: center; gap: 6px;">
+                        GHIDRA SRE FRAMEWORK DECOMPILER
+                        <span style="font-size: 0.55rem; padding: 1px 5px; border-radius: 4px; background: rgba(0, 255, 157, 0.15); border: 1px solid rgba(0, 255, 157, 0.3); color: var(--accent-primary); font-weight: normal; font-family: var(--font-mono);">HEADLESS ACTIVE</span>
+                    </div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 1px;">
+                        ${isIt ? 'Ricostruzione strutturale del binario nativo ed estrazione del pseudo-codice C++' : 'Structural binary reconstruction and automated pseudo-C++ generation'}
+                    </div>
+                </div>
+            </div>
+            <div style="font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-muted); text-align: right; background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.03);">
+                ENGINE: Ghidra 12.1.3_build
+            </div>
+        </div>
+
+        <!-- Main Split Panel -->
+        <div class="sandbox-decompiler-container" style="flex: 1; display: flex; min-height: 380px;">
+            <!-- Left functions list -->
             <div class="sandbox-decompiler-sidebar">
-                <div class="sandbox-decompiler-sidebar-header">
-                    🔍 ${isIt ? 'FUNZIONI RILEVATE' : 'IDENTIFIED FUNCTIONS'} (${decompiledList.length})
+                <div class="sandbox-decompiler-sidebar-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>🔍 ${isIt ? 'FUNZIONI' : 'FUNCTIONS'} (${decompiledList.length})</span>
                 </div>
                 <div class="sandbox-decompiler-fn-list" id="decompiler-fn-list-container">
                     ${sidebarList}
                 </div>
             </div>
-            <div class="sandbox-decompiler-codeview" id="decompiler-code-container">${highlightedCode}</div>
+            
+            <!-- Right Code Viewer (Toolbar + Editor + Gutter + Code) -->
+            <div class="sandbox-decompiler-editor">
+                <!-- Code Toolbar -->
+                <div class="decompiler-editor-header">
+                    <span id="decompiler-active-function-name" style="font-weight: bold; color: var(--text-main);">${firstFnName}</span>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-family: var(--font-mono); color: var(--accent-info); font-size: 0.6rem; letter-spacing: 0.5px;">LANG: C / DECOMPILED</span>
+                        <button class="btn btn-secondary btn-sm" onclick="window.copyDecompiledCode(this)" style="font-size: 0.58rem; padding: 2px 6px; font-weight: bold; cursor: pointer; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.02); color: var(--text-muted);">
+                            📋 COPY CODE
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Gutter & Pre block -->
+                <div style="display: flex; flex: 1; overflow: hidden; min-height: 0;">
+                    <!-- Line Numbers gutter -->
+                    <div class="sandbox-decompiler-line-numbers" id="decompiler-line-numbers">
+                        ${initialLineNumbers}
+                    </div>
+                    <!-- Source Code Viewer -->
+                    <div class="sandbox-decompiler-codeview" id="decompiler-code-container">${highlightedCode}</div>
+                </div>
+            </div>
         </div>
     `;
-}
 
 function renderReport(isMalicious, meta) {
     window.currentSandboxReport = { isMalicious, meta };

@@ -2606,11 +2606,47 @@ body.light-mode .sandbox-decompiler-fn-item.active {
     border-left-color: var(--accent-primary);
 }
 
+.sandbox-decompiler-editor {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    background: #04080e;
+    min-height: 0;
+    position: relative;
+    box-sizing: border-box;
+    flex-direction: column;
+}
+
+body.light-mode .sandbox-decompiler-editor {
+    background: #fafafa;
+}
+
+.sandbox-decompiler-line-numbers {
+    width: 40px;
+    padding: 15px 5px 15px 10px;
+    text-align: right;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    color: #4c566a;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 0.7rem;
+    line-height: 1.45;
+    user-select: none;
+    background: rgba(0, 0, 0, 0.15);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+body.light-mode .sandbox-decompiler-line-numbers {
+    border-right-color: rgba(0, 0, 0, 0.08);
+    color: #a0a0a0;
+    background: rgba(0, 0, 0, 0.02);
+}
+
 .sandbox-decompiler-codeview {
     flex: 1;
     padding: 15px;
     overflow-y: auto;
-    background: #04080e;
     font-family: 'JetBrains Mono', 'Courier New', monospace;
     font-size: 0.72rem;
     line-height: 1.45;
@@ -2621,8 +2657,25 @@ body.light-mode .sandbox-decompiler-fn-item.active {
 }
 
 body.light-mode .sandbox-decompiler-codeview {
-    background: #fafafa;
     color: #2e3440;
+}
+
+.decompiler-editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 15px;
+    background: rgba(5, 10, 20, 0.4);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+body.light-mode .decompiler-editor-header {
+    background: rgba(0, 0, 0, 0.03);
+    border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 
 /* Syntax Highlighting for Decompiled pseudo-C */
