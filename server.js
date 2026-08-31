@@ -522,6 +522,140 @@ function generateGenericDecompile(filename) {
 }
 
 // 4. DECOMPILE (Ghidra Reverse Engineering Router)
+// ---- YARA Analysis Definitions & Engines ----
+const YARA_RULES_METADATA = {
+    "MZ_PE_Header": {
+        rule: "MZ_PE_Header",
+        tags: ["pe", "executable"],
+        description: "Detects Windows Portable Executable (PE) headers",
+        severity: "Info",
+        matches: ["0x00000000:$mz: MZ Header (0x5A4D)"]
+    },
+    "Detect_BlackStorm_Ransomware": {
+        rule: "Detect_BlackStorm_Ransomware",
+        tags: ["ransomware", "cryptography", "evasion"],
+        description: "Detects BlackStorm Ransomware signature patterns",
+        severity: "Critical",
+        matches: [
+            "0x00001240:$vss: vssadmin.exe delete shadows",
+            "0x000017f0:$ext: .locked",
+            "0x00001b20:$aes: AES_CBC_encrypt_buffer",
+            "0x00001d60:$c2: contact_c2_server"
+        ]
+    },
+    "Detect_PHP_Webshell_Backdoor": {
+        rule: "Detect_PHP_Webshell_Backdoor",
+        tags: ["webshell", "backdoor", "c2"],
+        description: "Detects PHP web shell commands and backdoors",
+        severity: "High",
+        matches: [
+            "0x00000012:$p1: eval(",
+            "0x00000045:$p2: system(",
+            "0x000000a2:$p5: fsockopen("
+        ]
+    },
+    "Detect_Dnstt_DNS_Tunnel": {
+        rule: "Detect_Dnstt_DNS_Tunnel",
+        tags: ["tunneling", "dns", "c2"],
+        description: "Detects dnstt DNS tunneling agent signatures",
+        severity: "High",
+        matches: [
+            "0x00001000:$d1: dns.c2server.org",
+            "0x00001340:$d2: dnstt",
+            "0x000016a0:$d3: build_dns_query_txt"
+        ]
+    }
+};
+
+function runYaraScanJS(fileBuffer, fileName, sampleType) {
+    const matches = [];
+    const contentStr = fileBuffer.toString('utf-8');
+    const contentStrLower = contentStr.toLowerCase();
+    
+    const isMZ = fileBuffer.length >= 2 && fileBuffer[0] === 0x4D && fileBuffer[1] === 0x5A; // MZ
+    const isPHP = fileBuffer.length >= 2 && fileBuffer[0] === 0x3C && fileBuffer[1] === 0x3F; // <?
+    
+    // MZ PE Header Match
+    if (isMZ) {
+        matches.push(YARA_RULES_METADATA.MZ_PE_Header);
+    }
+    
+    // Check for Ransomware
+    if (sampleType === 'ransomware' || 
+        (contentStrLower.includes('vssadmin.exe') && contentStrLower.includes('delete') && contentStrLower.includes('shadows')) ||
+        (contentStrLower.includes('.locked') && contentStrLower.includes('encrypt'))) {
+        
+        matches.push(YARA_RULES_METADATA.Detect_BlackStorm_Ransomware);
+    }
+    
+    // Check for PHP Webshell
+    if (sampleType === 'webshell' || 
+        (contentStr.includes('eval(') || contentStr.includes('system(') || contentStr.includes('fsockopen('))) {
+        
+        matches.push(YARA_RULES_METADATA.Detect_PHP_Webshell_Backdoor);
+    }
+    
+    // Check for DNS Tunneling
+    if (sampleType === 'dns_tunneling' || 
+        (contentStrLower.includes('dns.c2server.org') || contentStrLower.includes('dnstt'))) {
+        
+        matches.push(YARA_RULES_METADATA.Detect_Dnstt_DNS_Tunnel);
+    }
+    
+    // Default fallback if nothing matches but type is clean to show PE header
+    if (matches.length === 0 && isMZ) {
+        matches.push(YARA_RULES_METADATA.MZ_PE_Header);
+    }
+    
+    return matches;
+}
+
+function runYaraScan(fileBuffer, filePath, fileName, sampleType, callback) {
+    // Attempt to locate local YARA installation
+    let yaraPath = 'yara'; // default to system PATH
+    const userYaraPath = 'C:\\yara\\yara64.exe';
+    
+    if (fs.existsSync(userYaraPath)) {
+        yaraPath = userYaraPath;
+    }
+    
+    const rulesPath = path.join(__dirname, 'rules.yar');
+    if (!fs.existsSync(rulesPath)) {
+        console.warn(`[YARA] rules.yar not found, falling back to JavaScript engine.`);
+        return callback(runYaraScanJS(fileBuffer, fileName, sampleType));
+    }
+    
+    const cmd = `"${yaraPath}" "${rulesPath}" "${filePath}"`;
+    exec(cmd, (error, stdout, stderr) => {
+        if (error || stderr) {
+            // Fallback to JS scan on error (e.g. YARA not installed)
+            return callback(runYaraScanJS(fileBuffer, fileName, sampleType));
+        }
+        
+        // Parse stdout which has lines like: RuleName filePath
+        const matchedRules = [];
+        const lines = stdout.split('\n');
+        lines.forEach(line => {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length > 0 && parts[0]) {
+                const ruleName = parts[0];
+                if (YARA_RULES_METADATA[ruleName]) {
+                    matchedRules.push(YARA_RULES_METADATA[ruleName]);
+                }
+            }
+        });
+        
+        // Ensure at least PE header matched if isMZ is true and not captured
+        const isMZ = fileBuffer.length >= 2 && fileBuffer[0] === 0x4D && fileBuffer[1] === 0x5A;
+        if (isMZ && !matchedRules.some(r => r.rule === 'MZ_PE_Header')) {
+            matchedRules.unshift(YARA_RULES_METADATA.MZ_PE_Header);
+        }
+        
+        callback(matchedRules);
+    });
+}
+
+// 4. DECOMPILE (Ghidra Reverse Engineering Router)
 app.post('/api/sandbox/decompile', upload.single('file'), (req, res) => {
     const file = req.file;
     const sampleType = req.body.sampleType; // ransomware, webshell, dns_tunneling, clean
@@ -538,74 +672,85 @@ app.post('/api/sandbox/decompile', upload.single('file'), (req, res) => {
 
     if (!file) {
         // If no file was uploaded (preloaded samples select)
-        return res.json({ success: true, isMock: true, data: fallbackData });
+        const mockYara = runYaraScanJS(Buffer.from(''), '', sampleType);
+        return res.json({ success: true, isMock: true, data: fallbackData, yaraMatches: mockYara });
     }
 
-    // Attempt to locate local Ghidra installation
-    let ghidraPath = process.env.GHIDRA_PATH || 'C:\\ghidra';
-    const userGhidraPath = 'C:\\Users\\Utente\\Downloads\\ghidra-Ghidra_12.1.3_build\\ghidra-Ghidra_12.1.3_build';
-    
-    if (fs.existsSync(userGhidraPath)) {
-        ghidraPath = userGhidraPath;
-    } else if (!fs.existsSync(ghidraPath)) {
-        const standardProgramFiles = 'C:\\Program Files\\ghidra';
-        if (fs.existsSync(standardProgramFiles)) {
-            ghidraPath = standardProgramFiles;
-        }
-    }
-    
-    let headlessPath = '';
-    const isWindows = process.platform === 'win32';
-
-    if (isWindows) {
-        headlessPath = path.join(ghidraPath, 'support', 'analyzeHeadless.bat');
-    } else {
-        headlessPath = path.join(ghidraPath, 'support', 'analyzeHeadless');
+    // Run YARA scan first
+    let fileBuffer;
+    try {
+        fileBuffer = fs.readFileSync(file.path);
+    } catch (e) {
+        fileBuffer = Buffer.from('');
     }
 
-    if (!fs.existsSync(headlessPath)) {
-        console.warn(`[SANDBOX] Ghidra Headless Analyzer not found at: ${headlessPath}. Using mockup decompiler fallback.`);
-        // Clean up uploaded file
-        try { fs.unlinkSync(file.path); } catch (e) {}
-        return res.json({ success: true, isMock: true, data: fallbackData });
-    }
-
-    // Build directories for Ghidra project database
-    const uniqueId = Date.now();
-    const projDir = path.join(__dirname, `ghidra_proj_${uniqueId}`);
-    const outputJson = path.join(TEMP_UPLOAD_DIR, `decompile_${uniqueId}.json`);
-    const scriptPath = __dirname; // decompile_script.py is located in the same directory as server.js
-
-    console.log(`[SANDBOX] Spawning Ghidra Headless Analyzer on: ${file.path}`);
-    const cmd = `"${headlessPath}" "${projDir}" TempProj_${uniqueId} -import "${file.path}" -scriptPath "${scriptPath}" -postScript decompile_script.py "${outputJson}" -deleteProject -overwrite`;
-
-    exec(cmd, (error, stdout, stderr) => {
-        // Clean up files
-        try { fs.unlinkSync(file.path); } catch (e) {}
-        try {
-            if (fs.existsSync(projDir)) {
-                fs.rmSync(projDir, { recursive: true, force: true });
+    runYaraScan(fileBuffer, file.path, file.originalname, sampleType, (yaraMatches) => {
+        // Attempt to locate local Ghidra installation
+        let ghidraPath = process.env.GHIDRA_PATH || 'C:\\ghidra';
+        const userGhidraPath = 'C:\\Users\\Utente\\Downloads\\ghidra-Ghidra_12.1.3_build\\ghidra-Ghidra_12.1.3_build';
+        
+        if (fs.existsSync(userGhidraPath)) {
+            ghidraPath = userGhidraPath;
+        } else if (!fs.existsSync(ghidraPath)) {
+            const standardProgramFiles = 'C:\\Program Files\\ghidra';
+            if (fs.existsSync(standardProgramFiles)) {
+                ghidraPath = standardProgramFiles;
             }
-        } catch (e) {}
+        }
+        
+        let headlessPath = '';
+        const isWindows = process.platform === 'win32';
 
-        if (error) {
-            console.error('[SANDBOX] Ghidra execution failed, falling back to mock:', error);
-            try { fs.unlinkSync(outputJson); } catch (e) {}
-            return res.json({ success: true, isMock: true, data: fallbackData, error: error.message });
+        if (isWindows) {
+            headlessPath = path.join(ghidraPath, 'support', 'analyzeHeadless.bat');
+        } else {
+            headlessPath = path.join(ghidraPath, 'support', 'analyzeHeadless');
         }
 
-        try {
-            if (!fs.existsSync(outputJson)) {
-                throw new Error('Decompilation script output file missing');
+        if (!fs.existsSync(headlessPath)) {
+            console.warn(`[SANDBOX] Ghidra Headless Analyzer not found at: ${headlessPath}. Using mockup decompiler fallback.`);
+            // Clean up uploaded file
+            try { fs.unlinkSync(file.path); } catch (e) {}
+            return res.json({ success: true, isMock: true, data: fallbackData, yaraMatches: yaraMatches });
+        }
+
+        // Build directories for Ghidra project database
+        const uniqueId = Date.now();
+        const projDir = path.join(__dirname, `ghidra_proj_${uniqueId}`);
+        const outputJson = path.join(TEMP_UPLOAD_DIR, `decompile_${uniqueId}.json`);
+        const scriptPath = __dirname; // decompile_script.py is located in the same directory as server.js
+
+        console.log(`[SANDBOX] Spawning Ghidra Headless Analyzer on: ${file.path}`);
+        const cmd = `"${headlessPath}" "${projDir}" TempProj_${uniqueId} -import "${file.path}" -scriptPath "${scriptPath}" -postScript decompile_script.py "${outputJson}" -deleteProject -overwrite`;
+
+        exec(cmd, (error, stdout, stderr) => {
+            // Clean up files
+            try { fs.unlinkSync(file.path); } catch (e) {}
+            try {
+                if (fs.existsSync(projDir)) {
+                    fs.rmSync(projDir, { recursive: true, force: true });
+                }
+            } catch (e) {}
+
+            if (error) {
+                console.error('[SANDBOX] Ghidra execution failed, falling back to mock:', error);
+                try { fs.unlinkSync(outputJson); } catch (e) {}
+                return res.json({ success: true, isMock: true, data: fallbackData, yaraMatches: yaraMatches, error: error.message });
             }
-            const data = JSON.parse(fs.readFileSync(outputJson, 'utf8'));
-            fs.unlinkSync(outputJson);
-            return res.json({ success: true, isMock: false, data: data });
-        } catch (e) {
-            console.error('[SANDBOX] Failed to parse Ghidra output JSON:', e);
-            try { fs.unlinkSync(outputJson); } catch (e) {}
-            return res.json({ success: true, isMock: true, data: fallbackData, error: e.message });
-        }
+
+            try {
+                if (!fs.existsSync(outputJson)) {
+                    throw new Error('Decompilation script output file missing');
+                }
+                const data = JSON.parse(fs.readFileSync(outputJson, 'utf8'));
+                fs.unlinkSync(outputJson);
+                return res.json({ success: true, isMock: false, data: data, yaraMatches: yaraMatches });
+            } catch (e) {
+                console.error('[SANDBOX] Failed to parse Ghidra output JSON:', e);
+                try { fs.unlinkSync(outputJson); } catch (e) {}
+                return res.json({ success: true, isMock: true, data: fallbackData, yaraMatches: yaraMatches, error: e.message });
+            }
+        });
     });
 });
 

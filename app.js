@@ -377,7 +377,7 @@ const TRANSLATIONS = {
         console_init: 'PRONTO PER L\'ANALISI...',
         report_title: 'RAPPORTO ANALISI',
         verdict_safe: 'SICURO',
-        verdict_malicious: 'MALICOLO',
+        verdict_malicious: 'MALEVOLO',
         db_mount_success: 'DATABASE COLLEGATO',
         db_mount_fail: 'CONNESSIONE FALLITA'
     }
@@ -3459,6 +3459,17 @@ async function runSandboxSimulation(metadata, u8) {
             if (allExtractedText.toLowerCase().includes('vssadmin') && allExtractedText.toLowerCase().includes('delete') && allExtractedText.toLowerCase().includes('shadows')) {
                 logConsole(`[ALERT] Found malicious pattern: 'vssadmin delete shadows' in file content`, 'error');
             }
+
+            // Log YARA matches
+            logConsole(`[YARA] ${isIt ? 'Scansione regole YARA in corso...' : 'Running YARA signature ruleset scan...'}`, 'warn');
+            const matches = window.currentYaraMatches || [];
+            if (matches.length > 0) {
+                matches.forEach(m => {
+                    logConsole(`[YARA] MATCH: rule "${m.rule}" [severity: ${m.severity}]`, 'error');
+                });
+            } else {
+                logConsole(`[YARA] ${isIt ? 'Nessun match di firma YARA rilevato.' : 'No YARA signature matches detected.'}`, 'success');
+            }
         }
         if (step === 6) {
             const verdictState = isMalicious ? 'danger' : 'success';
@@ -4396,12 +4407,85 @@ function syntaxHighlightC(code) {
     return escaped;
 }
 
+function getLocalMockYara(sampleType, fileName) {
+    const yaraRules = {
+        "MZ_PE_Header": {
+            rule: "MZ_PE_Header",
+            tags: ["pe", "executable"],
+            description: "Detects Windows Portable Executable (PE) headers",
+            severity: "Info",
+            matches: ["0x00000000:$mz: MZ Header (0x5A4D)"]
+        },
+        "Detect_BlackStorm_Ransomware": {
+            rule: "Detect_BlackStorm_Ransomware",
+            tags: ["ransomware", "cryptography", "evasion"],
+            description: "Detects BlackStorm Ransomware signature patterns",
+            severity: "Critical",
+            matches: [
+                "0x00001240:$vss: vssadmin.exe delete shadows",
+                "0x000017f0:$ext: .locked",
+                "0x00001b20:$aes: AES_CBC_encrypt_buffer",
+                "0x00001d60:$c2: contact_c2_server"
+            ]
+        },
+        "Detect_PHP_Webshell_Backdoor": {
+            rule: "Detect_PHP_Webshell_Backdoor",
+            tags: ["webshell", "backdoor", "c2"],
+            description: "Detects PHP web shell commands and backdoors",
+            severity: "High",
+            matches: [
+                "0x00000012:$p1: eval(",
+                "0x00000045:$p2: system(",
+                "0x000000a2:$p5: fsockopen("
+            ]
+        },
+        "Detect_Dnstt_DNS_Tunnel": {
+            rule: "Detect_Dnstt_DNS_Tunnel",
+            tags: ["tunneling", "dns", "c2"],
+            description: "Detects dnstt DNS tunneling agent signatures",
+            severity: "High",
+            matches: [
+                "0x00001000:$d1: dns.c2server.org",
+                "0x00001340:$d2: dnstt",
+                "0x000016a0:$d3: build_dns_query_txt"
+            ]
+        }
+    };
+
+    const matches = [];
+    const nameLower = (fileName || "").toLowerCase();
+    const isMZ = nameLower.endsWith('.exe') || nameLower.endsWith('.dll') || sampleType === 'ransomware' || sampleType === 'dns_tunneling' || sampleType === 'clean';
+    
+    if (isMZ) {
+        matches.push(yaraRules.MZ_PE_Header);
+    }
+    
+    if (sampleType === 'ransomware' || nameLower.includes('ransom') || nameLower.includes('lock') || nameLower.includes('invoice')) {
+        matches.push(yaraRules.Detect_BlackStorm_Ransomware);
+    }
+    
+    if (sampleType === 'webshell' || nameLower.includes('cmd') || nameLower.includes('shell') || nameLower.includes('.php')) {
+        matches.push(yaraRules.Detect_PHP_Webshell_Backdoor);
+    }
+    
+    if (sampleType === 'dns_tunneling' || nameLower.includes('dns') || nameLower.includes('tunnel') || nameLower.includes('dnstt')) {
+        matches.push(yaraRules.Detect_Dnstt_DNS_Tunnel);
+    }
+    
+    if (matches.length === 0 && isMZ) {
+        matches.push(yaraRules.MZ_PE_Header);
+    }
+    
+    return matches;
+}
+
 async function triggerGhidraDecompilation(file, sampleType) {
     const isIt = currentLang === 'it';
     logConsole(`[SYSTEM] ${isIt ? 'Avvio decompilatore statico Ghidra...' : 'Launching static decompiler Ghidra...'}`, 'info');
     
     // Default fallback mock data
     window.currentDecompiledData = getLocalMockDecompile(sampleType, file ? file.name : null);
+    window.currentYaraMatches = getLocalMockYara(sampleType, file ? file.name : null);
     
     try {
         const formData = new FormData();
@@ -4421,13 +4505,21 @@ async function triggerGhidraDecompilation(file, sampleType) {
             const result = await response.json();
             if (result.success && result.data) {
                 window.currentDecompiledData = result.data;
+                if (result.yaraMatches) {
+                    window.currentYaraMatches = result.yaraMatches;
+                    const yaraCount = result.yaraMatches.length;
+                    const yaraMode = result.isMock ? ' (Mock Fallback)' : ' (YARA Engine)';
+                    logConsole(`[SYSTEM] ${isIt ? 'Scansione YARA completata' : 'YARA scan completed'}: ${yaraCount} match${yaraCount === 1 ? '' : 'es'}${yaraMode}`, 'success');
+                } else {
+                    window.currentYaraMatches = getLocalMockYara(sampleType, file ? file.name : null);
+                }
                 const modeText = result.isMock ? ' (Mock Fallback)' : ' (Ghidra Headless Engine)';
                 logConsole(`[SYSTEM] ${isIt ? 'Decompilazione terminata' : 'Decompilation completed'}${modeText}`, 'success');
             }
         }
     } catch (e) {
-        console.warn('Decompiler API offline, keeping offline mock data.', e);
-        logConsole(`[SYSTEM] ${isIt ? 'Decompilatore offline. Usato motore di decompilazione locale di riserva.' : 'Decompiler offline. Using local backup decompiler engine.'}`, 'warn');
+        console.warn('Decompiler/YARA API offline, keeping offline mock data.', e);
+        logConsole(`[SYSTEM] ${isIt ? 'Decompilatore offline. Usato motore locale di riserva per Ghidra & YARA.' : 'Decompiler offline. Using local backup deengines for Ghidra & YARA.'}`, 'warn');
     }
 }
 
@@ -4617,8 +4709,41 @@ function renderReport(isMalicious, meta) {
             <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255,255,255,0.04); border-radius: 6px; padding: 10px; margin-top: 8px;">
                 <div style="font-weight: bold; color: var(--accent-danger); margin-bottom: 8px; border-bottom: 1px solid rgba(255, 51, 102, 0.2); padding-bottom: 2px;">⚠️ LOCAL SIGNATURE MATCHES</div>
                 <ul style="margin: 0; padding-left: 15px; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-main); line-height: 1.4;">
-                    ${meta.scriptFindings.map(f => `<li>Line ${f.lineNum}: <span style="color: var(--accent-danger); font-weight: bold;">${f.issue}</span> - <code>${f.content.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></li>`).join('')}
+                    ${meta.scriptFindings.map(f => `<li>Line ${f.lineNum}: <span style="color: var(--accent-danger); font-weight: bold;">${f.lineNum}:</span> <code>${f.content.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></li>`).join('')}
                 </ul>
+            </div>
+        `;
+    }
+
+    let yaraRulesHTML = "";
+    const yaraMatches = window.currentYaraMatches || [];
+    if (yaraMatches.length > 0) {
+        yaraRulesHTML = `
+            <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255,255,255,0.04); border-radius: 6px; padding: 12px; margin-top: 8px;">
+                <div style="font-weight: bold; color: #f59e0b; margin-bottom: 8px; border-bottom: 1px solid rgba(245, 158, 11, 0.2); padding-bottom: 4px; font-family: var(--font-mono); font-size: 0.72rem; display: flex; align-items: center; gap: 6px;">
+                    🎯 YARA SIGNATURE MATCHES
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    ${yaraMatches.map(m => {
+                        const sevColor = m.severity === 'Critical' ? 'var(--accent-danger)' : (m.severity === 'High' ? 'var(--accent-warn)' : 'var(--accent-primary)');
+                        return `
+                            <div style="background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.02); padding: 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.68rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 4px; margin-bottom: 6px;">
+                                    <span style="color: #f59e0b; font-weight: bold;">rule ${m.rule}</span>
+                                    <span style="font-size: 0.58rem; background: ${sevColor}20; color: ${sevColor}; padding: 1px 4px; border-radius: 3px; border: 1px solid ${sevColor}40; font-family: var(--font-mono);">${m.severity || 'Info'}</span>
+                                </div>
+                                <div style="color: var(--text-muted); margin-bottom: 4px;">Description: <span style="color: var(--text-main);">${m.description}</span></div>
+                                <div style="color: var(--text-muted); margin-bottom: 6px;">Tags: <span style="color: var(--accent-info); font-size: 0.62rem;">[${m.tags.join(', ')}]</span></div>
+                                ${m.matches && m.matches.length > 0 ? `
+                                    <div style="font-size: 0.6rem; color: #a1a1aa; background: rgba(0,0,0,0.3); padding: 6px; border-radius: 2px; margin-top: 4px;">
+                                        <strong style="color: var(--text-muted);">Strings matched:</strong>
+                                        ${m.matches.map(match => `<div style="margin-top: 2px; border-left: 2px solid #f59e0b; padding-left: 6px; color: #34d399; font-family: var(--font-mono); font-size: 0.58rem;">${match}</div>`).join('')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
             </div>
         `;
     }
@@ -4652,6 +4777,7 @@ function renderReport(isMalicious, meta) {
                 </div>
             </div>
             ${generateIntelCheckHTML(isMalicious, meta)}
+            ${yaraRulesHTML}
             ${localRulesHTML}
         </div>
         

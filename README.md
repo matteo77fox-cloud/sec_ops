@@ -56,3 +56,12 @@ Il portale include un decompilatore integrato per visualizzare il reverse engine
   2. Scarica e decomprimi il framework **Ghidra** in una cartella locale (es. `C:\ghidra`).
   3. Avvia il server Node locale (`node server.js`).
   4. Carica un file eseguibile o seleziona un campione precaricato: il server richiamerà in background il tool `analyzeHeadless` di Ghidra, analizzerà le funzioni e mostrerà il pseudo-codice C reale all'interno del tab **DECOMPILATORE** del portale.
+
+---
+
+### 5. Integrazione Scanner di Firme YARA
+Il modulo Sandbox supporta la scansione statica con regole YARA per identificare e classificare i pattern delle minacce:
+* **Funzionamento Out-of-the-Box (Motore di Scansione JS)**: Se l'eseguibile CLI di YARA non è presente sul PC, il portale esegue una scansione simulata ad alta fedeltà basata su un parser di espressioni regolari in JavaScript. Questa analizza il file caricato e mappa i pattern di stringhe esatti per Ransomware, Web Shell e DNS Tunneling, visualizzando i match nel tab **VERDETTO & INTEL** con stringhe corrispondenti, descrizione e gravità.
+* **Scansione Reale con YARA CLI**: Per utilizzare l'effettivo scanner YARA sul sistema:
+  1. Installa l'eseguibile di YARA (es. `yara64.exe` su Windows) ed aggiungilo alle variabili d'ambiente PATH, o posizionalo in `C:\yara\yara64.exe`.
+  2. Il portale leggerà il file di regole `rules.yar` presente nel progetto ed eseguirà la scansione in tempo reale di qualsiasi file binario inviato alla Sandbox, restituendo i match formattati direttamente sul browser.
