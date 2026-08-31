@@ -1,0 +1,6 @@
+node_modules/
+package-lock.json
+temp_uploads/
+ghidra_proj_*
+decompile_*.json
+.env
