@@ -4577,6 +4577,7 @@ function generateDecompilerHTML() {
             </div>
         </div>
     `;
+}
 
 function renderReport(isMalicious, meta) {
     window.currentSandboxReport = { isMalicious, meta };
